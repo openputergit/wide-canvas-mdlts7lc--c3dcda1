@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Field Data Collection App</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.min.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen">
+        <!-- Navigation -->
+        <nav class="bg-green-700 text-white p-4">
+            <div class="container mx-auto flex justify-between items-center">
+                <h1 class="text-xl font-bold">Field Data Collection</h1>
+                <div class="space-x-4">
+                    <button onclick="switchModule('bird')" class="nav-btn" id="birdBtn">Bird Survey</button>
+                    <button onclick="switchModule('vegetation')" class="nav-btn" id="vegBtn">Vegetation Survey</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="container mx-auto p-4">
+            <!-- Bird Survey Form -->
+            <div id="birdSurvey" class="module">
+                <h2 class="text-2xl font-bold mb-4">Bird Survey Form</h2>
+                <form id="birdForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <input type="date" name="date" class="form-input" placeholder="Date">
+                    <input type="text" name="regionLabel" class="form-input" placeholder="Region Label">
+                    <input type="number" name="area" class="form-input" placeholder="Area (acre)" step="0.01">
+                    <input type="text" name="feature" class="form-input" placeholder="Feature">
+                    <input type="text" name="featureNumber" class="form-input" placeholder="Feature Number">
+                    <input type="text" name="sampleLabel" class="form-input" placeholder="Point Station">
+                    <input type="number" name="distance" class="form-input" placeholder="Distance (m)">
+                    <div class="relative">
+                        <input type="text" name="scientificName" class="form-input" placeholder="Species (Scientific Name)" onchange="tryAutoFillScientificName(this)">
+                    </div>
+                    <input type="text" name="commonName" class="form-input" placeholder="Common Name">
+                    <select name="effort" class="form-input">
+                        <option value="">Select Effort</option>
+                        <script>
+                            // Generate options 1-50
+                            for(let i = 1; i <= 50; i++) {
+                                document.write(`<option value="${i}">${i}</option>`);
+                            }
+                        </script>
+                    </select>
+                    <input type="time" name="time" class="form-input">
+                    <input type="number" name="temperature" class="form-input" placeholder="Temperature (°C)">
+                    <input type="text" name="behaviourNotes" class="form-input" placeholder="Behaviour Notes">
+                    <input type="text" name="habitatType" class="form-input" placeholder="Habitat Type">
+                    <input type="text" name="weather" class="form-input" placeholder="Weather">
+                    <input type="text" name="observerName" class="form-input" placeholder="Observer Name">
+                    <input type="number" name="count" class="form-input" placeholder="Count" min="1">
+                    <button type="submit" class="bg-green-600 text-white p-2 rounded hover:bg-green-700">Save Record</button>
+                </form>
+            </div>
+
+            <!-- Vegetation Survey Form -->
+            <div id="vegetationSurvey" class="module hidden">
+                <h2 class="text-2xl font-bold mb-4">Vegetation Survey Form</h2>
+                <form id="vegForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <input type="date" name="date" class="form-input" placeholder="Date">
+                    <input type="text" name="regionLabel" class="form-input" placeholder="Region Label">
+                    <input type="number" name="area" class="form-input" placeholder="Area (acre)" step="0.01">
+                    <input type="text" name="feature" class="form-input" placeholder="Feature">
+                    <input type="text" name="featureNumber" class="form-input" placeholder="Feature Number">
+                    <input type="text" name="sampleLabel" class="form-input" placeholder="Point Station">
+                    <input type="text" name="vegetationType" class="form-input" placeholder="Vegetation Type">
+                    <input type="text" name="scientificName" class="form-input" placeholder="Species (Scientific Name)">
+                    <input type="text" name="commonName" class="form-input" placeholder="Common Name">
+                    <input type="number" name="height" class="form-input" placeholder="Height (m)">
+                    <input type="number" name="dbh" class="form-input" placeholder="DBH (cm)">
+                    <input type="number" name="canopyCover" class="form-input" placeholder="Canopy Cover (%)" min="0" max="100">
+                    <input type="text" name="notes" class="form-input" placeholder="Notes">
+                    <input type="text" name="observerName" class="form-input" placeholder="Observer Name">
+                    <button type="submit" class="bg-green-600 text-white p-2 rounded hover:bg-green-700">Save Record</button>
+                </form>
+            </div>
+
+            <!-- Data View Section -->
+            <div class="mt-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">Records</h3>
+                    <div class="space-x-2">
+                        <input type="text" id="searchInput" class="form-input" placeholder="Search...">
+                        <button onclick="exportData()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                            <i class="bi bi-download"></i> Export
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table id="dataTable" class="min-w-full bg-white shadow-md rounded">
+                        <thead class="bg-gray-200">
+                            <tr id="tableHeader"></tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Function to attempt to auto-fill scientific name
+        async function tryAutoFillScientificName(input) {
+            const commonName = input.value;
+            if (!commonName) return;
+            
+            // Note: This is a placeholder function that would need to be implemented
+            // with actual API calls to eBird or Merlin when online connectivity is available
+            // For now, we'll just show a message indicating the feature is pending
+            
+            console.log('Auto-fill scientific name feature pending online integration');
+            
+            /* Example of how it would work when implemented:
+            try {
+                const response = await fetch('API_ENDPOINT/search?q=' + encodeURIComponent(commonName));
+                const data = await response.json();
+                if (data.scientificName) {
+                    input.value = data.scientificName;
+                }
+            } catch (error) {
+                console.error('Error fetching scientific name:', error);
+            }
+            */
+        }
+    </script>
+
+    <style>
+        .form-input {
+            @apply border rounded p-2 w-full;
+        }
+        .nav-btn {
+            @apply px-4 py-2 rounded hover:bg-green-600 transition-colors;
+        }
+        .active-module {
+            @apply bg-green-600;
+        }
+    </style>
+
+    <script>
+        // Initialize Dexie database
+        const db = new Dexie('FieldSurveyDB');
+        db.version(1).stores({
+            birds: '++id,date,regionLabel,sampleLabel,scientificName',
+            vegetation: '++id,date,regionLabel,sampleLabel,vegetationType'
+        });
+
+        let currentModule = 'bird';
+
+        // Switch between modules
+        function switchModule(module) {
+            currentModule = module;
+            document.querySelectorAll('.module').forEach(m => m.classList.add('hidden'));
+            document.getElementById(module + 'Survey').classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active-module'));
+            document.getElementById(module + 'Btn').classList.add('active-module');
+            refreshTable();
+        }
+
+        // Handle form submissions
+        document.getElementById('birdForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const count = parseInt(formData.get('count'));
+            const baseRecord = Object.fromEntries(formData.entries());
+            delete baseRecord.count;
+
+            for (let i = 0; i < count; i++) {
+                await db.birds.add(baseRecord);
+            }
+            e.target.reset();
+            refreshTable();
+        });
+
+        document.getElementById('vegForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            await db.vegetation.add(Object.fromEntries(formData.entries()));
+            e.target.reset();
+            refreshTable();
+        });
+
+        // Refresh data table
+        async function refreshTable() {
+            const table = document.getElementById('dataTable');
+            const header = document.getElementById('tableHeader');
+            const body = document.getElementById('tableBody');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            header.innerHTML = '';
+            body.innerHTML = '';
+
+            let data = [];
+            if (currentModule === 'bird') {
+                data = await db.birds.toArray();
+                const columns = ['date', 'regionLabel', 'sampleLabel', 'scientificName', 'commonName', 'distance', 'time'];
+                columns.forEach(col => {
+                    const th = document.createElement('th');
+                    th.textContent = col.charAt(0).toUpperCase() + col.slice(1);
+                    th.className = 'p-2 text-left';
+                    header.appendChild(th);
+                });
+            } else {
+                data = await db.vegetation.toArray();
+                const columns = ['date', 'regionLabel', 'sampleLabel', 'vegetationType', 'scientificName', 'height', 'dbh'];
+                columns.forEach(col => {
+                    const th = document.createElement('th');
+                    th.textContent = col.charAt(0).toUpperCase() + col.slice(1);
+                    th.className = 'p-2 text-left';
+                    header.appendChild(th);
+                });
+            }
+
+            // Filter and display data
+            data.filter(record => 
+                Object.values(record).some(value => 
+                    String(value).toLowerCase().includes(searchTerm)
+                )
+            ).forEach(record => {
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-gray-50';
+                Object.keys(record).slice(1, 8).forEach(key => {
+                    const td = document.createElement('td');
+                    td.textContent = record[key];
+                    td.className = 'p-2';
+                    row.appendChild(td);
+                });
+                body.appendChild(row);
+            });
+        }
+
+        // Export data to CSV
+        function exportData() {
+            const table = document.getElementById('dataTable');
+            let csv = [];
+            const rows = table.querySelectorAll('tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                const row = [], cols = rows[i].querySelectorAll('td, th');
+                for (let j = 0; j < cols.length; j++) {
+                    row.push(cols[j].textContent);
+                }
+                csv.push(row.join(','));
+            }
+
+            const csvContent = 'data:text/csv;charset=utf-8,' + csv.join('\n');
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', `${currentModule}_survey_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Initialize the app
+        document.getElementById('searchInput').addEventListener('input', refreshTable);
+        switchModule('bird');
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
